@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Homework Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom Scrollbar for Dashboard */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        textarea {
+            resize: none;
+            overflow: hidden;
+            min-height: 40px;
+        }
+
+        /* Print Media Styles - Critical for output generation */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 4mm; /* Greatly minimized margins */
+            }
+            body {
+                background-color: white;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            /* Hide the entire interactive dashboard */
+            #app-container {
+                display: none !important;
+            }
+            /* Show only the print layout */
+            #print-container {
+                display: block !important;
+                width: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            .slip-divider {
+                border-bottom: 1px dashed #94a3b8; /* Thinner cut line */
+                margin-bottom: 4mm; /* Reduced space between slips */
+                padding-bottom: 4mm; /* Reduced space between slips */
+                page-break-inside: avoid;
+            }
+            .slip-divider:last-child {
+                border-bottom: none;
+                margin-bottom: 0;
+                padding-bottom: 0;
+            }
+            .subject-table th, .subject-table td {
+                border: 1px solid #000;
+                padding: 2px 4px !important; /* Minimized table padding */
+                font-size: 11px !important; /* Smaller text for compact print */
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans h-screen overflow-hidden">
+
+    <!-- MAIN APP CONTAINER (Hidden during print) -->
+    <div id="app-container" class="flex h-full w-full">
+        
+        <!-- LEFT PANEL: Dashboard Inputs -->
+        <div id="dashboard-panel" class="w-full lg:w-1/2 flex flex-col h-full bg-white shadow-xl z-10 border-r border-gray-200">
+            
+            <!-- Header -->
+            <div class="bg-blue-600 text-white p-5 shadow-md flex justify-between items-center">
+                <div>
+                    <h1 class="text-2xl font-bold tracking-wide">Homework Dashboard</h1>
+                    <p class="text-blue-100 text-sm">School Administration Tool</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="resetCurrentClass()" class="text-xs bg-blue-500 hover:bg-blue-700 px-3 py-2 rounded shadow transition" title="Clear current class homework">Reset Class</button>
+                    <button onclick="resetAll()" class="text-xs bg-red-500 hover:bg-red-600 px-3 py-2 rounded shadow transition" title="Delete all saved data">Reset All</button>
+                </div>
+            </div>
+
+            <!-- Scrollable Input Area -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-6">
+                
+                <!-- Section: School Info -->
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                    <h2 class="text-lg font-semibold text-gray-700 border-b pb-2">School Configuration</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">School Name <span class="text-red-500">*</span></label>
+                            <input type="text" id="school-name" placeholder="E.g., S N Public School" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">School Address</label>
+                            <input type="text" id="school-address" placeholder="E.g., Kanakapura Main Road, Bengaluru" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none transition">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-1">Principal Signature (PNG/JPG)</label>
+                        <div class="flex items-center gap-4">
+                            <input type="file" id="signature-upload" accept="image/png, image/jpeg, image/jpg" class="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                            <button onclick="clearSignature()" class="text-xs text-red-500 hover:underline hidden" id="clear-sig-btn">Remove Sign</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Class & Date -->
+                <div class="flex gap-4 items-end">
+                    <div class="w-1/2">
+                        <label class="block text-sm font-medium text-gray-600 mb-1">Select Class <span class="text-red-500">*</span></label>
+                        <select id="class-select" class="w-full p-2 border border-gray-300 rounded shadow-sm focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-blue-700 bg-blue-50">
+                            <option value="Class 1">Class 1</option>
+                            <option value="Class 2">Class 2</option>
+                            <option value="Class 3">Class 3</option>
+                            <option value="Class 4">Class 4</option>
+                            <option value="Class 5">Class 5</option>
+                        </select>
+                    </div>
+                    <div class="w-1/2">
+                        <label class="block text-sm font-medium text-gray-600 mb-1">Date</label>
+                        <input type="date" id="homework-date" class="w-full p-2 border border-gray-300 rounded shadow-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700">
+                    </div>
+                </div>
+
+                <!-- Section: Subjects & Homework -->
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-sm">
+                    <div class="flex justify-between items-center border-b pb-2 mb-4">
+                        <h2 class="text-lg font-semibold text-gray-700">Daily Homework</h2>
+                        <button onclick="addSubject()" class="text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded shadow transition flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Add Subject
+                        </button>
+                    </div>
+                    
+                    <div id="subjects-container" class="space-y-3">
+                        <!-- Subjects will be injected here via JS -->
+                    </div>
+                </div>
+
+                <!-- Section: Special Notice -->
+                <div class="bg-yellow-50 p-4 rounded-xl border border-yellow-200 shadow-sm">
+                    <label class="flex items-center gap-2 cursor-pointer mb-2">
+                        <input type="checkbox" id="enable-notice" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                        <span class="font-medium text-gray-700">Enable Special Notice</span>
+                    </label>
+                    <div id="notice-container" class="hidden">
+                        <textarea id="notice-text" placeholder="E.g., Bring colour pencils tomorrow." class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none transition mt-1"></textarea>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Footer Action -->
+            <div class="p-5 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
+                <p class="text-xs text-gray-500" id="save-status">All changes auto-saved.</p>
+                <button onclick="validateAndPrint()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg px-8 py-3 rounded-lg shadow-lg hover:shadow-xl transition transform hover:-translate-y-0.5 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                    GENERATE & PRINT
+                </button>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL: Live Preview -->
+        <div class="hidden lg:flex w-1/2 bg-gray-300 overflow-y-auto p-8 justify-center relative">
+            <!-- A4 Paper Simulation -->
+            <div id="preview-paper" class="bg-white shadow-2xl relative transition-all duration-300 flex flex-col" style="width: 210mm; min-height: 297mm; padding: 10mm; pointer-events: none;">
+                <!-- Preview Slips injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- PRINT CONTAINER (Hidden in App, Block in Print Media) -->
+    <div id="print-container" class="hidden font-serif text-black bg-white">
+        <!-- Rendered slips go here right before print -->
+    </div>
+
+    <script>
+        /** * CONSTANTS & DEFAULT STATE
+         */
+        const STORAGE_KEY = 'hw_dashboard_data';
+        const EXPIRY_HOURS = 24;
+        
+        const DEFAULT_SUBJECTS = ["English", "Kannada", "Hindi", "Mathematics", "EVS", "Computer", "General Knowledge", "Moral Science", "Drawing"];
+        
+        let appState = {
+            timestamp: Date.now(), // Used for 24h expiry check
+            schoolName: "",
+            schoolAddress: "",
+            principalSignature: null, // Base64 string
+            currentClass: "Class 1",
+            classes: {} // Will hold data for Class 1 to 5
+        };
+
+        // DOM Elements
+        const DOM = {
+            schoolName: document.getElementById('school-name'),
+            schoolAddress: document.getElementById('school-address'),
+            signatureUpload: document.getElementById('signature-upload'),
+            clearSigBtn: document.getElementById('clear-sig-btn'),
+            classSelect: document.getElementById('class-select'),
+            homeworkDate: document.getElementById('homework-date'),
+            subjectsContainer: document.getElementById('subjects-container'),
+            enableNotice: document.getElementById('enable-notice'),
+            noticeContainer: document.getElementById('notice-container'),
+            noticeText: document.getElementById('notice-text'),
+            previewPaper: document.getElementById('preview-paper'),
+            printContainer: document.getElementById('print-container'),
+            saveStatus: document.getElementById('save-status'),
+            dashboardPanel: document.getElementById('dashboard-panel')
+        };
+
+        /**
+         * INITIALIZATION & DATA LOADING
+         */
+        function init() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            let requiresNewInit = true;
+
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    const hoursPassed = (Date.now() - parsed.timestamp) / (1000 * 60 * 60);
+                    
+                    if (hoursPassed < EXPIRY_HOURS) {
+                        appState = parsed;
+                        requiresNewInit = false;
+                        console.log("Loaded saved data. Valid for another", (EXPIRY_HOURS - hoursPassed).toFixed(2), "hours.");
+                    } else {
+                        console.log("Stored data expired. Initializing fresh state.");
+                        localStorage.removeItem(STORAGE_KEY);
+                    }
+                } catch (e) {
+                    console.error("Error parsing stored data", e);
+                }
+            }
+
+            if (requiresNewInit) {
+                initializeEmptyClasses();
+                appState.timestamp = Date.now(); // Reset timestamp
+            } else {
+                // Ensure all classes exist in loaded state
+                initializeEmptyClasses(false); 
+            }
+
+            // Set up event listeners
+            setupEventListeners();
+            
+            // Populate UI with state
+            populateHeaderUI();
+            loadClassData(appState.currentClass);
+        }
+
+        function initializeEmptyClasses(overwrite = true) {
+            const classNames = ["Class 1", "Class 2", "Class 3", "Class 4", "Class 5"];
+            classNames.forEach(c => {
+                if (overwrite || !appState.classes[c]) {
+                    appState.classes[c] = {
+                        date: getTodayStr(),
+                        noticeEnabled: false,
+                        noticeText: "",
+                        subjects: DEFAULT_SUBJECTS.map(name => ({ id: generateId(), name: name, text: "" }))
+                    };
+                }
+            });
+        }
+
+        function getTodayStr() {
+            const today = new Date();
+            return today.toISOString().split('T')[0];
+        }
+
+        function generateId() {
+            return Math.random().toString(36).substr(2, 9);
+        }
+
+        /**
+         * AUTO-SAVE & STATE MANAGEMENT
+         */
+        let saveTimeout;
+        function queueSaveAndRender() {
+            // Update State from UI elements that don't need dedicated handlers
+            appState.schoolName = DOM.schoolName.value;
+            appState.schoolAddress = DOM.schoolAddress.value;
+            appState.currentClass = DOM.classSelect.value;
+            
+            let cData = appState.classes[appState.currentClass];
+            cData.date = DOM.homeworkDate.value;
+            cData.noticeEnabled = DOM.enableNotice.checked;
+            cData.noticeText = DOM.noticeText.value;
+
+            // Extract subject data from DOM
+            cData.subjects = [];
+            document.querySelectorAll('.subject-row').forEach(row => {
+                cData.subjects.push({
+                    id: row.dataset.id,
+                    name: row.querySelector('.subject-name').value,
+                    text: row.querySelector('.subject-text').value
+                });
+            });
+
+            // Debounce save to LocalStorage
+            clearTimeout(saveTimeout);
+            DOM.saveStatus.innerText = "Saving...";
+            DOM.saveStatus.classList.add('text-orange-500');
+            
+            saveTimeout = setTimeout(() => {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+                DOM.saveStatus.innerText = "All changes auto-saved ✓";
+                DOM.saveStatus.classList.remove('text-orange-500');
+                DOM.saveStatus.classList.add('text-green-600');
+                
+                setTimeout(() => DOM.saveStatus.classList.remove('text-green-600'), 2000);
+                
+                renderLivePreview();
+            }, 300);
+        }
+
+        /**
+         * UI RENDERING
+         */
+        function populateHeaderUI() {
+            DOM.schoolName.value = appState.schoolName;
+            DOM.schoolAddress.value = appState.schoolAddress;
+            DOM.classSelect.value = appState.currentClass;
+            if(appState.principalSignature) {
+                DOM.clearSigBtn.classList.remove('hidden');
+            }
+        }
+
+        function loadClassData(className) {
+            const data = appState.classes[className];
+            DOM.homeworkDate.value = data.date;
+            DOM.enableNotice.checked = data.noticeEnabled;
+            DOM.noticeText.value = data.noticeText;
+            toggleNotice();
+            
+            renderSubjectsList(data.subjects);
+            queueSaveAndRender();
+        }
+
+        function renderSubjectsList(subjects) {
+            DOM.subjectsContainer.innerHTML = '';
+            subjects.forEach((sub, index) => {
+                const row = document.createElement('div');
+                row.className = 'subject-row flex items-start gap-3 p-3 bg-white border border-gray-200 rounded shadow-sm hover:shadow-md transition group';
+                row.dataset.id = sub.id;
+
+                row.innerHTML = `
+                    <div class="flex flex-col gap-1 items-center justify-center pt-1 opacity-50 group-hover:opacity-100 transition">
+                        <button onclick="moveSubject('${sub.id}', -1)" title="Move Up" class="p-1 hover:bg-gray-100 rounded text-gray-500 ${index === 0 ? 'invisible' : ''}"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg></button>
+                        <button onclick="moveSubject('${sub.id}', 1)" title="Move Down" class="p-1 hover:bg-gray-100 rounded text-gray-500 ${index === subjects.length - 1 ? 'invisible' : ''}"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
+                    </div>
+                    <div class="w-1/3">
+                        <input type="text" value="${sub.name}" placeholder="Subject Name" class="subject-name w-full p-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500 font-semibold text-gray-700 outline-none bg-gray-50">
+                    </div>
+                    <div class="w-full relative">
+                        <textarea placeholder="Enter homework here..." class="subject-text w-full p-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500 outline-none leading-relaxed">${sub.text}</textarea>
+                    </div>
+                    <button onclick="removeSubject('${sub.id}')" title="Remove Subject" class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition mt-1">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                `;
+                DOM.subjectsContainer.appendChild(row);
+                
+                // Trigger auto-expand on load for existing text
+                const textarea = row.querySelector('.subject-text');
+                adjustTextareaHeight(textarea);
+            });
+        }
+
+        /**
+         * EVENT LISTENERS
+         */
+        function setupEventListeners() {
+            // General inputs trigger save (excluding class-select to prevent overwriting bugs)
+            DOM.dashboardPanel.addEventListener('input', (e) => {
+                if (e.target.id === 'class-select') return; // Handled below in 'change'
+
+                if (e.target.tagName.toLowerCase() === 'textarea') {
+                    adjustTextareaHeight(e.target);
+                }
+                queueSaveAndRender();
+            });
+
+            // Handled separately so switching classes accurately loads the correct saved data 
+            // without immediately overwriting it with the old DOM inputs.
+            DOM.classSelect.addEventListener('change', (e) => {
+                appState.currentClass = e.target.value;
+                loadClassData(appState.currentClass);
+            });
+
+            DOM.enableNotice.addEventListener('change', () => {
+                toggleNotice();
+                queueSaveAndRender();
+            });
+
+            // Image Upload Logic (Resize & Convert to Base64)
+            DOM.signatureUpload.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        // Resize image to prevent massive LocalStorage usage
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        const MAX_HEIGHT = 80; // Reasonable signature height
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                        
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        appState.principalSignature = canvas.toDataURL('image/png');
+                        DOM.clearSigBtn.classList.remove('hidden');
+                        queueSaveAndRender();
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function adjustTextareaHeight(el) {
+            el.style.height = 'auto';
+            el.style.height = (el.scrollHeight) + 'px';
+        }
+
+        function toggleNotice() {
+            if (DOM.enableNotice.checked) {
+                DOM.noticeContainer.classList.remove('hidden');
+            } else {
+                DOM.noticeContainer.classList.add('hidden');
+                DOM.noticeText.value = ''; // Clear text if disabled
+            }
+        }
+
+        /**
+         * SUBJECT OPERATIONS
+         */
+        function addSubject() {
+            let cData = appState.classes[appState.currentClass];
+            cData.subjects.push({ id: generateId(), name: "New Subject", text: "" });
+            renderSubjectsList(cData.subjects);
+            queueSaveAndRender();
+        }
+
+        function removeSubject(id) {
+            let cData = appState.classes[appState.currentClass];
+            cData.subjects = cData.subjects.filter(s => s.id !== id);
+            renderSubjectsList(cData.subjects);
+            queueSaveAndRender();
+        }
+
+        function moveSubject(id, direction) {
+            let cData = appState.classes[appState.currentClass];
+            const idx = cData.subjects.findIndex(s => s.id === id);
+            if (idx < 0) return;
+            
+            const newIdx = idx + direction;
+            if (newIdx < 0 || newIdx >= cData.subjects.length) return;
+
+            // Swap
+            const temp = cData.subjects[idx];
+            cData.subjects[idx] = cData.subjects[newIdx];
+            cData.subjects[newIdx] = temp;
+            
+            renderSubjectsList(cData.subjects);
+            queueSaveAndRender();
+        }
+
+        function clearSignature() {
+            appState.principalSignature = null;
+            DOM.signatureUpload.value = '';
+            DOM.clearSigBtn.classList.add('hidden');
+            queueSaveAndRender();
+        }
+
+        function resetCurrentClass() {
+            if(confirm(`Are you sure you want to clear homework for ${appState.currentClass}?`)) {
+                initializeEmptyClasses(false); // Make sure default structure exists
+                
+                appState.classes[appState.currentClass] = {
+                    date: getTodayStr(),
+                    noticeEnabled: false,
+                    noticeText: "",
+                    subjects: DEFAULT_SUBJECTS.map(name => ({ id: generateId(), name: name, text: "" }))
+                };
+                loadClassData(appState.currentClass);
+            }
+        }
+
+        function resetAll() {
+            if(confirm("WARNING: This will delete ALL data for ALL classes. Are you sure?")) {
+                localStorage.removeItem(STORAGE_KEY);
+                location.reload(); // Quickest way to completely reset
+            }
+        }
+
+        /**
+         * PREVIEW AND PRINT GENERATION LOGIC
+         */
+        
+        // Helper to format date nicely
+        function formatDate(dateStr) {
+            if (!dateStr) return "";
+            const options = { year: 'numeric', month: 'short', day: 'numeric' };
+            return new Date(dateStr).toLocaleDateString('en-IN', options);
+        }
+
+        // Generate the HTML for a single identical homework slip
+        function generateSlipHTML() {
+            const data = appState.classes[appState.currentClass];
+            const schoolName = appState.schoolName || 'School Name Not Set';
+            const schoolAddr = appState.schoolAddress;
+            const dateFormatted = formatDate(data.date);
+            
+            // Format "Class 1" to just "1" for the printout
+            const formattedClass = appState.currentClass.replace('Class ', '');
+            
+            // Filter out subjects with empty homework to save space on paper
+            const activeSubjects = data.subjects.filter(s => s.text.trim() !== "");
+
+            let subjectsHTML = '';
+            if (activeSubjects.length > 0) {
+                subjectsHTML = `
+                    <table class="w-full subject-table border-collapse mb-1.5" style="font-size: 12px; line-height: 1.2;">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="p-1 border border-black text-left w-1/4 font-semibold">Subject</th>
+                                <th class="p-1 border border-black text-left font-semibold">Homework Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${activeSubjects.map(sub => `
+                                <tr>
+                                    <td class="p-1 border border-black font-medium align-top">${sub.name}</td>
+                                    <td class="p-1 border border-black align-top whitespace-pre-wrap">${sub.text}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } else {
+                subjectsHTML = `<p class="italic text-gray-500 text-center py-1.5 text-xs border border-gray-300">No homework assigned.</p>`;
+            }
+
+            let noticeHTML = '';
+            if (data.noticeEnabled && data.noticeText.trim()) {
+                noticeHTML = `
+                    <div class="border border-black p-1.5 mb-1 bg-yellow-50" style="font-size: 12px; line-height: 1.2;">
+                        <span class="font-bold uppercase underline">Special Notice:</span>
+                        <div class="mt-0.5 whitespace-pre-wrap">${data.noticeText}</div>
+                    </div>
+                `;
+            }
+
+            let signatureHTML = '';
+            if (appState.principalSignature) {
+                signatureHTML = `<img src="${appState.principalSignature}" style="max-height: 35px; width: auto; object-fit: contain; margin: 0 auto; display: block;">`;
+            } else {
+                signatureHTML = `<div style="height: 35px;"></div>`;
+            }
+
+            return `
+                <div class="flex flex-col">
+                    <div class="text-center mb-1">
+                        <h1 class="text-lg font-bold uppercase" style="line-height: 1.1;">${schoolName}</h1>
+                        ${schoolAddr ? `<p class="text-xs text-gray-700 mt-0.5">${schoolAddr}</p>` : ''}
+                    </div>
+                    
+                    <div class="flex justify-between items-end border-b border-black pb-0.5 mb-1.5 text-sm font-semibold">
+                        <div>Class: <span class="ml-1">${formattedClass}</span></div>
+                        <div>Date: <span class="ml-1">${dateFormatted}</span></div>
+                    </div>
+
+                    <div class="flex-grow">
+                        ${subjectsHTML}
+                        ${noticeHTML}
+                    </div>
+
+                    <div class="flex justify-between items-end mt-2 pt-1 text-xs font-semibold">
+                        <div class="text-center w-1/3">
+                            <div style="height: 35px;"></div>
+                            <div class="border-t border-black pt-1">Class Teacher Sign</div>
+                        </div>
+                        <div class="text-center w-1/3">
+                            ${signatureHTML}
+                            <div class="border-t border-black pt-1">Principal Sign</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Dynamically calculate how many slips fit in an A4 page height
+        function calculateOptimalCopies(slipHTML) {
+            // A4 height is ~297mm. At 96 DPI, ~1122px. 
+            // Margins are 4mm top+bottom (8mm total) = ~30px. 
+            // Usable height = ~1092px. We use 1050px to be safe.
+            const SAFE_PAGE_HEIGHT_PX = 1050;
+            
+            // Create hidden DOM element to measure slip height
+            const measureDiv = document.createElement('div');
+            measureDiv.style.width = '202mm'; // A4 width minus margins (210 - 8)
+            measureDiv.style.position = 'absolute';
+            measureDiv.style.visibility = 'hidden';
+            measureDiv.style.top = '-9999px';
+            measureDiv.innerHTML = `
+                <div class="slip-divider pb-2 mb-2" style="border-bottom: 1px dashed #000; margin-bottom: 4mm; padding-bottom: 4mm;">
+                    ${slipHTML}
+                </div>
+            `;
+            document.body.appendChild(measureDiv);
+            
+            const slipHeight = measureDiv.offsetHeight;
+            document.body.removeChild(measureDiv);
+
+            if (slipHeight === 0) return 4; // Fallback to 4 with tight margins
+
+            let copies = Math.floor(SAFE_PAGE_HEIGHT_PX / slipHeight);
+            
+            // Enforce realistic bounds based on tighter CSS
+            if (copies < 1) copies = 1;
+            if (copies > 6) copies = 6;
+            
+            return copies;
+        }
+
+        function renderLivePreview() {
+            const slipHTML = generateSlipHTML();
+            const copies = calculateOptimalCopies(slipHTML);
+            
+            let fullHTML = '';
+            for(let i=0; i < copies; i++) {
+                fullHTML += `<div class="slip-divider">${slipHTML}</div>`;
+            }
+
+            // Update on-screen preview
+            DOM.previewPaper.innerHTML = fullHTML;
+            // Update hidden print container
+            DOM.printContainer.innerHTML = fullHTML;
+        }
+
+        function validateAndPrint() {
+            if (!appState.schoolName.trim()) {
+                alert("Please enter the School Name before printing.");
+                DOM.schoolName.focus();
+                return;
+            }
+
+            const data = appState.classes[appState.currentClass];
+            const hasHomework = data.subjects.some(s => s.text.trim() !== "");
+            const hasNotice = data.noticeEnabled && data.noticeText.trim() !== "";
+
+            if (!hasHomework && !hasNotice) {
+                if (!confirm("No homework or notice text entered. Generate blank sheet anyway?")) {
+                    return;
+                }
+            }
+
+            // Ensure rendering is up to date
+            renderLivePreview();
+            
+            // Trigger browser print
+            window.print();
+        }
+
+        // START APP
+        init();
+
+    </script>
+</body>
+</html>
