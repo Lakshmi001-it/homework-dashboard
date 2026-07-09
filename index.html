@@ -18,16 +18,18 @@
             min-height: 40px;
         }
 
-        /* Print Media Styles - Critical for output generation */
+        /* Print Media Styles - Critical for 5-slip output generation */
         @media print {
             @page {
                 size: A4 portrait;
-                margin: 4mm; /* Greatly minimized margins */
+                margin: 5mm; /* Very small margins to maximize space */
             }
             body {
                 background-color: white;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
+                margin: 0;
+                padding: 0;
             }
             /* Hide the entire interactive dashboard */
             #app-container {
@@ -41,20 +43,24 @@
                 padding: 0;
             }
             .slip-divider {
-                border-bottom: 1px dashed #94a3b8; /* Thinner cut line */
-                margin-bottom: 4mm; /* Reduced space between slips */
-                padding-bottom: 4mm; /* Reduced space between slips */
+                /* Force each slip to take up slightly less than 1/5th of the page */
+                height: 19.5vh; 
+                max-height: 19.5vh;
+                overflow: hidden; /* Prevents long text from pushing to a 2nd page */
+                box-sizing: border-box;
+                border-bottom: 1px dashed #000; /* Cutting line */
+                margin-bottom: 0;
+                padding-bottom: 1.5mm;
+                padding-top: 1.5mm;
                 page-break-inside: avoid;
             }
             .slip-divider:last-child {
                 border-bottom: none;
-                margin-bottom: 0;
-                padding-bottom: 0;
             }
             .subject-table th, .subject-table td {
                 border: 1px solid #000;
-                padding: 2px 4px !important; /* Minimized table padding */
-                font-size: 11px !important; /* Smaller text for compact print */
+                padding: 1px 3px !important; /* Minimized table padding */
+                font-size: 10px !important; /* Smaller text for compact print */
             }
         }
     </style>
@@ -93,13 +99,6 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-600 mb-1">School Address</label>
                             <input type="text" id="school-address" placeholder="E.g., Kanakapura Main Road, Bengaluru" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none transition">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-600 mb-1">Principal Signature (PNG/JPG)</label>
-                        <div class="flex items-center gap-4">
-                            <input type="file" id="signature-upload" accept="image/png, image/jpeg, image/jpg" class="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                            <button onclick="clearSignature()" class="text-xs text-red-500 hover:underline hidden" id="clear-sig-btn">Remove Sign</button>
                         </div>
                     </div>
                 </div>
@@ -182,20 +181,17 @@
         const DEFAULT_SUBJECTS = ["English", "Kannada", "Hindi", "Mathematics", "EVS", "Computer", "General Knowledge", "Moral Science", "Drawing"];
         
         let appState = {
-            timestamp: Date.now(), // Used for 24h expiry check
+            timestamp: Date.now(),
             schoolName: "",
             schoolAddress: "",
-            principalSignature: null, // Base64 string
             currentClass: "Class 1",
-            classes: {} // Will hold data for Class 1 to 5
+            classes: {} 
         };
 
         // DOM Elements
         const DOM = {
             schoolName: document.getElementById('school-name'),
             schoolAddress: document.getElementById('school-address'),
-            signatureUpload: document.getElementById('signature-upload'),
-            clearSigBtn: document.getElementById('clear-sig-btn'),
             classSelect: document.getElementById('class-select'),
             homeworkDate: document.getElementById('homework-date'),
             subjectsContainer: document.getElementById('subjects-container'),
@@ -223,9 +219,7 @@
                     if (hoursPassed < EXPIRY_HOURS) {
                         appState = parsed;
                         requiresNewInit = false;
-                        console.log("Loaded saved data. Valid for another", (EXPIRY_HOURS - hoursPassed).toFixed(2), "hours.");
                     } else {
-                        console.log("Stored data expired. Initializing fresh state.");
                         localStorage.removeItem(STORAGE_KEY);
                     }
                 } catch (e) {
@@ -235,17 +229,15 @@
 
             if (requiresNewInit) {
                 initializeEmptyClasses();
-                appState.timestamp = Date.now(); // Reset timestamp
+                appState.timestamp = Date.now(); 
             } else {
-                // Ensure all classes exist in loaded state
                 initializeEmptyClasses(false); 
             }
 
-            // Set up event listeners
             setupEventListeners();
-            
-            // Populate UI with state
             populateHeaderUI();
+            
+            // Load initial class
             loadClassData(appState.currentClass);
         }
 
@@ -273,21 +265,20 @@
         }
 
         /**
-         * AUTO-SAVE & STATE MANAGEMENT
+         * STATE MANAGEMENT & AUTO-SAVE
          */
-        let saveTimeout;
-        function queueSaveAndRender() {
-            // Update State from UI elements that don't need dedicated handlers
+        
+        // Explicitly reads the current DOM and saves it strictly to the current active class.
+        // This prevents the bug where switching classes overwrote data.
+        function saveDOMToState() {
             appState.schoolName = DOM.schoolName.value;
             appState.schoolAddress = DOM.schoolAddress.value;
-            appState.currentClass = DOM.classSelect.value;
             
             let cData = appState.classes[appState.currentClass];
             cData.date = DOM.homeworkDate.value;
             cData.noticeEnabled = DOM.enableNotice.checked;
             cData.noticeText = DOM.noticeText.value;
 
-            // Extract subject data from DOM
             cData.subjects = [];
             document.querySelectorAll('.subject-row').forEach(row => {
                 cData.subjects.push({
@@ -296,8 +287,12 @@
                     text: row.querySelector('.subject-text').value
                 });
             });
+        }
 
-            // Debounce save to LocalStorage
+        let saveTimeout;
+        function triggerSaveAndRender() {
+            saveDOMToState();
+            
             clearTimeout(saveTimeout);
             DOM.saveStatus.innerText = "Saving...";
             DOM.saveStatus.classList.add('text-orange-500');
@@ -309,9 +304,9 @@
                 DOM.saveStatus.classList.add('text-green-600');
                 
                 setTimeout(() => DOM.saveStatus.classList.remove('text-green-600'), 2000);
-                
-                renderLivePreview();
             }, 300);
+
+            renderLivePreview();
         }
 
         /**
@@ -321,11 +316,9 @@
             DOM.schoolName.value = appState.schoolName;
             DOM.schoolAddress.value = appState.schoolAddress;
             DOM.classSelect.value = appState.currentClass;
-            if(appState.principalSignature) {
-                DOM.clearSigBtn.classList.remove('hidden');
-            }
         }
 
+        // Populates the DOM from the state for a specific class
         function loadClassData(className) {
             const data = appState.classes[className];
             DOM.homeworkDate.value = data.date;
@@ -334,11 +327,12 @@
             toggleNotice();
             
             renderSubjectsList(data.subjects);
-            queueSaveAndRender();
+            renderLivePreview(); // Just render preview, do NOT trigger a save to state
         }
 
         function renderSubjectsList(subjects) {
             DOM.subjectsContainer.innerHTML = '';
+            
             subjects.forEach((sub, index) => {
                 const row = document.createElement('div');
                 row.className = 'subject-row flex items-start gap-3 p-3 bg-white border border-gray-200 rounded shadow-sm hover:shadow-md transition group';
@@ -350,20 +344,23 @@
                         <button onclick="moveSubject('${sub.id}', 1)" title="Move Down" class="p-1 hover:bg-gray-100 rounded text-gray-500 ${index === subjects.length - 1 ? 'invisible' : ''}"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
                     </div>
                     <div class="w-1/3">
-                        <input type="text" value="${sub.name}" placeholder="Subject Name" class="subject-name w-full p-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500 font-semibold text-gray-700 outline-none bg-gray-50">
+                        <input type="text" class="subject-name w-full p-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500 font-semibold text-gray-700 outline-none bg-gray-50" placeholder="Subject Name">
                     </div>
                     <div class="w-full relative">
-                        <textarea placeholder="Enter homework here..." class="subject-text w-full p-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500 outline-none leading-relaxed">${sub.text}</textarea>
+                        <textarea class="subject-text w-full p-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500 outline-none leading-relaxed" placeholder="Enter homework here..."></textarea>
                     </div>
                     <button onclick="removeSubject('${sub.id}')" title="Remove Subject" class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition mt-1">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                     </button>
                 `;
+                
                 DOM.subjectsContainer.appendChild(row);
                 
-                // Trigger auto-expand on load for existing text
-                const textarea = row.querySelector('.subject-text');
-                adjustTextareaHeight(textarea);
+                // CRITICAL FIX: Explicitly set values after appending to DOM to prevent browser caching old data
+                row.querySelector('.subject-name').value = sub.name;
+                row.querySelector('.subject-text').value = sub.text;
+                
+                adjustTextareaHeight(row.querySelector('.subject-text'));
             });
         }
 
@@ -371,60 +368,35 @@
          * EVENT LISTENERS
          */
         function setupEventListeners() {
-            // General inputs trigger save (excluding class-select to prevent overwriting bugs)
+            // Watch for typing in inputs and textareas
             DOM.dashboardPanel.addEventListener('input', (e) => {
-                if (e.target.id === 'class-select') return; // Handled below in 'change'
+                // Ignore the select element, we handle it separately to avoid race conditions
+                if (e.target.id === 'class-select') return; 
 
                 if (e.target.tagName.toLowerCase() === 'textarea') {
                     adjustTextareaHeight(e.target);
                 }
-                queueSaveAndRender();
+                triggerSaveAndRender();
             });
 
-            // Handled separately so switching classes accurately loads the correct saved data 
-            // without immediately overwriting it with the old DOM inputs.
+            // Handled completely separately to perfectly preserve state when switching
             DOM.classSelect.addEventListener('change', (e) => {
+                // 1. Force save the currently typed text into the OLD class
+                saveDOMToState(); 
+                
+                // 2. Safely switch active class
                 appState.currentClass = e.target.value;
+                
+                // 3. Load new class into DOM
                 loadClassData(appState.currentClass);
+                
+                // 4. Update storage immediately
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
             });
 
             DOM.enableNotice.addEventListener('change', () => {
                 toggleNotice();
-                queueSaveAndRender();
-            });
-
-            // Image Upload Logic (Resize & Convert to Base64)
-            DOM.signatureUpload.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    const img = new Image();
-                    img.onload = function() {
-                        // Resize image to prevent massive LocalStorage usage
-                        const canvas = document.createElement('canvas');
-                        const ctx = canvas.getContext('2d');
-                        const MAX_HEIGHT = 80; // Reasonable signature height
-                        let width = img.width;
-                        let height = img.height;
-
-                        if (height > MAX_HEIGHT) {
-                            width *= MAX_HEIGHT / height;
-                            height = MAX_HEIGHT;
-                        }
-                        
-                        canvas.width = width;
-                        canvas.height = height;
-                        ctx.drawImage(img, 0, 0, width, height);
-                        
-                        appState.principalSignature = canvas.toDataURL('image/png');
-                        DOM.clearSigBtn.classList.remove('hidden');
-                        queueSaveAndRender();
-                    };
-                    img.src = event.target.result;
-                };
-                reader.readAsDataURL(file);
+                triggerSaveAndRender();
             });
         }
 
@@ -438,7 +410,7 @@
                 DOM.noticeContainer.classList.remove('hidden');
             } else {
                 DOM.noticeContainer.classList.add('hidden');
-                DOM.noticeText.value = ''; // Clear text if disabled
+                DOM.noticeText.value = '';
             }
         }
 
@@ -446,20 +418,23 @@
          * SUBJECT OPERATIONS
          */
         function addSubject() {
+            saveDOMToState(); // Ensure we don't lose current typing
             let cData = appState.classes[appState.currentClass];
             cData.subjects.push({ id: generateId(), name: "New Subject", text: "" });
             renderSubjectsList(cData.subjects);
-            queueSaveAndRender();
+            triggerSaveAndRender();
         }
 
         function removeSubject(id) {
+            saveDOMToState();
             let cData = appState.classes[appState.currentClass];
             cData.subjects = cData.subjects.filter(s => s.id !== id);
             renderSubjectsList(cData.subjects);
-            queueSaveAndRender();
+            triggerSaveAndRender();
         }
 
         function moveSubject(id, direction) {
+            saveDOMToState();
             let cData = appState.classes[appState.currentClass];
             const idx = cData.subjects.findIndex(s => s.id === id);
             if (idx < 0) return;
@@ -473,19 +448,12 @@
             cData.subjects[newIdx] = temp;
             
             renderSubjectsList(cData.subjects);
-            queueSaveAndRender();
-        }
-
-        function clearSignature() {
-            appState.principalSignature = null;
-            DOM.signatureUpload.value = '';
-            DOM.clearSigBtn.classList.add('hidden');
-            queueSaveAndRender();
+            triggerSaveAndRender();
         }
 
         function resetCurrentClass() {
             if(confirm(`Are you sure you want to clear homework for ${appState.currentClass}?`)) {
-                initializeEmptyClasses(false); // Make sure default structure exists
+                initializeEmptyClasses(false); 
                 
                 appState.classes[appState.currentClass] = {
                     date: getTodayStr(),
@@ -494,13 +462,14 @@
                     subjects: DEFAULT_SUBJECTS.map(name => ({ id: generateId(), name: name, text: "" }))
                 };
                 loadClassData(appState.currentClass);
+                triggerSaveAndRender();
             }
         }
 
         function resetAll() {
             if(confirm("WARNING: This will delete ALL data for ALL classes. Are you sure?")) {
                 localStorage.removeItem(STORAGE_KEY);
-                location.reload(); // Quickest way to completely reset
+                location.reload(); 
             }
         }
 
@@ -508,7 +477,6 @@
          * PREVIEW AND PRINT GENERATION LOGIC
          */
         
-        // Helper to format date nicely
         function formatDate(dateStr) {
             if (!dateStr) return "";
             const options = { year: 'numeric', month: 'short', day: 'numeric' };
@@ -531,7 +499,7 @@
             let subjectsHTML = '';
             if (activeSubjects.length > 0) {
                 subjectsHTML = `
-                    <table class="w-full subject-table border-collapse mb-1.5" style="font-size: 12px; line-height: 1.2;">
+                    <table class="w-full subject-table border-collapse mb-1" style="font-size: 11px; line-height: 1.1;">
                         <thead>
                             <tr class="bg-gray-100">
                                 <th class="p-1 border border-black text-left w-1/4 font-semibold">Subject</th>
@@ -541,111 +509,66 @@
                         <tbody>
                             ${activeSubjects.map(sub => `
                                 <tr>
-                                    <td class="p-1 border border-black font-medium align-top">${sub.name}</td>
-                                    <td class="p-1 border border-black align-top whitespace-pre-wrap">${sub.text}</td>
+                                    <td class="p-0.5 px-1 border border-black font-medium align-top">${sub.name}</td>
+                                    <td class="p-0.5 px-1 border border-black align-top whitespace-pre-wrap">${sub.text}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
                     </table>
                 `;
             } else {
-                subjectsHTML = `<p class="italic text-gray-500 text-center py-1.5 text-xs border border-gray-300">No homework assigned.</p>`;
+                subjectsHTML = `<p class="italic text-gray-500 text-center py-1 text-[10px] border border-gray-300">No homework assigned.</p>`;
             }
 
             let noticeHTML = '';
             if (data.noticeEnabled && data.noticeText.trim()) {
                 noticeHTML = `
-                    <div class="border border-black p-1.5 mb-1 bg-yellow-50" style="font-size: 12px; line-height: 1.2;">
+                    <div class="border border-black p-1 mb-1 bg-yellow-50" style="font-size: 11px; line-height: 1.1;">
                         <span class="font-bold uppercase underline">Special Notice:</span>
                         <div class="mt-0.5 whitespace-pre-wrap">${data.noticeText}</div>
                     </div>
                 `;
             }
 
-            let signatureHTML = '';
-            if (appState.principalSignature) {
-                signatureHTML = `<img src="${appState.principalSignature}" style="max-height: 35px; width: auto; object-fit: contain; margin: 0 auto; display: block;">`;
-            } else {
-                signatureHTML = `<div style="height: 35px;"></div>`;
-            }
-
             return `
-                <div class="flex flex-col">
-                    <div class="text-center mb-1">
-                        <h1 class="text-lg font-bold uppercase" style="line-height: 1.1;">${schoolName}</h1>
-                        ${schoolAddr ? `<p class="text-xs text-gray-700 mt-0.5">${schoolAddr}</p>` : ''}
+                <div class="flex flex-col h-full">
+                    <div class="text-center mb-0.5">
+                        <h1 class="text-base font-bold uppercase" style="line-height: 1;">${schoolName}</h1>
+                        ${schoolAddr ? `<p class="text-[10px] text-gray-700 mt-0.5">${schoolAddr}</p>` : ''}
                     </div>
                     
-                    <div class="flex justify-between items-end border-b border-black pb-0.5 mb-1.5 text-sm font-semibold">
+                    <div class="flex justify-between items-end border-b border-black pb-0.5 mb-1 text-xs font-semibold">
                         <div>Class: <span class="ml-1">${formattedClass}</span></div>
                         <div>Date: <span class="ml-1">${dateFormatted}</span></div>
                     </div>
 
-                    <div class="flex-grow">
+                    <div>
                         ${subjectsHTML}
                         ${noticeHTML}
                     </div>
 
-                    <div class="flex justify-between items-end mt-2 pt-1 text-xs font-semibold">
+                    <div class="flex justify-end mt-1 text-[10px] font-semibold">
                         <div class="text-center w-1/3">
-                            <div style="height: 35px;"></div>
-                            <div class="border-t border-black pt-1">Class Teacher Sign</div>
-                        </div>
-                        <div class="text-center w-1/3">
-                            ${signatureHTML}
-                            <div class="border-t border-black pt-1">Principal Sign</div>
+                            <div style="height: 15px;"></div>
+                            <div class="border-t border-black pt-0.5">Class Teacher Sign</div>
                         </div>
                     </div>
                 </div>
             `;
         }
 
-        // Dynamically calculate how many slips fit in an A4 page height
-        function calculateOptimalCopies(slipHTML) {
-            // A4 height is ~297mm. At 96 DPI, ~1122px. 
-            // Margins are 4mm top+bottom (8mm total) = ~30px. 
-            // Usable height = ~1092px. We use 1050px to be safe.
-            const SAFE_PAGE_HEIGHT_PX = 1050;
-            
-            // Create hidden DOM element to measure slip height
-            const measureDiv = document.createElement('div');
-            measureDiv.style.width = '202mm'; // A4 width minus margins (210 - 8)
-            measureDiv.style.position = 'absolute';
-            measureDiv.style.visibility = 'hidden';
-            measureDiv.style.top = '-9999px';
-            measureDiv.innerHTML = `
-                <div class="slip-divider pb-2 mb-2" style="border-bottom: 1px dashed #000; margin-bottom: 4mm; padding-bottom: 4mm;">
-                    ${slipHTML}
-                </div>
-            `;
-            document.body.appendChild(measureDiv);
-            
-            const slipHeight = measureDiv.offsetHeight;
-            document.body.removeChild(measureDiv);
-
-            if (slipHeight === 0) return 4; // Fallback to 4 with tight margins
-
-            let copies = Math.floor(SAFE_PAGE_HEIGHT_PX / slipHeight);
-            
-            // Enforce realistic bounds based on tighter CSS
-            if (copies < 1) copies = 1;
-            if (copies > 6) copies = 6;
-            
-            return copies;
-        }
-
         function renderLivePreview() {
             const slipHTML = generateSlipHTML();
-            const copies = calculateOptimalCopies(slipHTML);
+            
+            // STRICTLY FORCED TO EXACTLY 5 SLIPS
+            const copies = 5; 
             
             let fullHTML = '';
             for(let i=0; i < copies; i++) {
                 fullHTML += `<div class="slip-divider">${slipHTML}</div>`;
             }
 
-            // Update on-screen preview
             DOM.previewPaper.innerHTML = fullHTML;
-            // Update hidden print container
             DOM.printContainer.innerHTML = fullHTML;
         }
 
@@ -667,6 +590,7 @@
             }
 
             // Ensure rendering is up to date
+            saveDOMToState();
             renderLivePreview();
             
             // Trigger browser print
