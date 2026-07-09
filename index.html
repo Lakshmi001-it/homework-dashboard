@@ -18,7 +18,7 @@
             min-height: 40px;
         }
 
-        /* Print Media Styles - Critical for 5-slip output generation */
+        /* Print Media Styles - Critical for output generation */
         @media print {
             @page {
                 size: A4 portrait;
@@ -43,9 +43,7 @@
                 padding: 0;
             }
             .slip-divider {
-                /* Force each slip to take up slightly less than 1/5th of the page */
-                height: 19.5vh; 
-                max-height: 19.5vh;
+                /* Heights are now assigned inline dynamically by JS */
                 overflow: hidden; /* Prevents long text from pushing to a 2nd page */
                 box-sizing: border-box;
                 border-bottom: 1px dashed #000; /* Cutting line */
@@ -268,8 +266,6 @@
          * STATE MANAGEMENT & AUTO-SAVE
          */
         
-        // Explicitly reads the current DOM and saves it strictly to the current active class.
-        // This prevents the bug where switching classes overwrote data.
         function saveDOMToState() {
             appState.schoolName = DOM.schoolName.value;
             appState.schoolAddress = DOM.schoolAddress.value;
@@ -318,7 +314,6 @@
             DOM.classSelect.value = appState.currentClass;
         }
 
-        // Populates the DOM from the state for a specific class
         function loadClassData(className) {
             const data = appState.classes[className];
             DOM.homeworkDate.value = data.date;
@@ -356,7 +351,6 @@
                 
                 DOM.subjectsContainer.appendChild(row);
                 
-                // CRITICAL FIX: Explicitly set values after appending to DOM to prevent browser caching old data
                 row.querySelector('.subject-name').value = sub.name;
                 row.querySelector('.subject-text').value = sub.text;
                 
@@ -368,9 +362,7 @@
          * EVENT LISTENERS
          */
         function setupEventListeners() {
-            // Watch for typing in inputs and textareas
             DOM.dashboardPanel.addEventListener('input', (e) => {
-                // Ignore the select element, we handle it separately to avoid race conditions
                 if (e.target.id === 'class-select') return; 
 
                 if (e.target.tagName.toLowerCase() === 'textarea') {
@@ -379,18 +371,10 @@
                 triggerSaveAndRender();
             });
 
-            // Handled completely separately to perfectly preserve state when switching
             DOM.classSelect.addEventListener('change', (e) => {
-                // 1. Force save the currently typed text into the OLD class
                 saveDOMToState(); 
-                
-                // 2. Safely switch active class
                 appState.currentClass = e.target.value;
-                
-                // 3. Load new class into DOM
                 loadClassData(appState.currentClass);
-                
-                // 4. Update storage immediately
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
             });
 
@@ -418,7 +402,7 @@
          * SUBJECT OPERATIONS
          */
         function addSubject() {
-            saveDOMToState(); // Ensure we don't lose current typing
+            saveDOMToState(); 
             let cData = appState.classes[appState.currentClass];
             cData.subjects.push({ id: generateId(), name: "New Subject", text: "" });
             renderSubjectsList(cData.subjects);
@@ -442,7 +426,6 @@
             const newIdx = idx + direction;
             if (newIdx < 0 || newIdx >= cData.subjects.length) return;
 
-            // Swap
             const temp = cData.subjects[idx];
             cData.subjects[idx] = cData.subjects[newIdx];
             cData.subjects[newIdx] = temp;
@@ -483,17 +466,14 @@
             return new Date(dateStr).toLocaleDateString('en-IN', options);
         }
 
-        // Generate the HTML for a single identical homework slip
         function generateSlipHTML() {
             const data = appState.classes[appState.currentClass];
             const schoolName = appState.schoolName || 'School Name Not Set';
             const schoolAddr = appState.schoolAddress;
             const dateFormatted = formatDate(data.date);
             
-            // Format "Class 1" to just "1" for the printout
             const formattedClass = appState.currentClass.replace('Class ', '');
             
-            // Filter out subjects with empty homework to save space on paper
             const activeSubjects = data.subjects.filter(s => s.text.trim() !== "");
 
             let subjectsHTML = '';
@@ -501,7 +481,7 @@
                 subjectsHTML = `
                     <div style="position: relative;">
                         <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: 0; pointer-events: none;">
-                            <span style="font-size: 3.5rem; font-weight: 800; color: rgba(0, 0, 0, 0.1); transform: rotate(-15deg); letter-spacing: 0.15em;">SNPS</span>
+                            <span style="font-size: 3.5rem; font-weight: 1000; color: rgba(0, 0, 0, 0.1); transform: rotate(-15deg); letter-spacing: 0.30em;">SNPS</span>
                         </div>
                         <table class="w-full subject-table border-collapse mb-1" style="font-size: 11px; line-height: 1.1; position: relative; z-index: 1;">
                             <thead>
@@ -536,7 +516,7 @@
             }
 
             return `
-                <div class="flex flex-col h-full">
+                <div class="flex flex-col h-full w-full">
                     <div class="text-center">
                         <h1 class="text-base font-bold uppercase" style="line-height: 1;">${schoolName}</h1>
                         ${schoolAddr ? `<p class="text-[10px] text-gray-700 leading-none">${schoolAddr}</p>` : ''}
@@ -559,15 +539,48 @@
             `;
         }
 
+        // Calculates how many copies fit based on the ACTUAL height of the rendered content
+        function calculateOptimalCopies(slipHTML) {
+            const measureDiv = document.createElement('div');
+            measureDiv.style.visibility = 'hidden';
+            measureDiv.style.position = 'absolute';
+            // Mimic print width (A4 width 210mm - 10mm margins = 200mm)
+            measureDiv.style.width = '200mm'; 
+            measureDiv.innerHTML = `<div style="padding-top: 1.5mm; padding-bottom: 1.5mm; border-bottom: 1px dashed #000;">${slipHTML}</div>`;
+            
+            document.body.appendChild(measureDiv);
+            const slipHeight = measureDiv.offsetHeight;
+            document.body.removeChild(measureDiv);
+
+            if (!slipHeight) return 5;
+
+            // A4 page height at 96 DPI is ~1122px. 
+            // 5mm top + 5mm bottom margin leaves ~1084px printable space.
+            // Using 1060px to provide a safe buffer avoiding page breaks.
+            const SAFE_PAGE_HEIGHT_PX = 1060;
+            
+            let copies = Math.floor(SAFE_PAGE_HEIGHT_PX / slipHeight);
+            
+            if (copies > 5) copies = 5;
+            if (copies < 1) copies = 1;
+            
+            return copies;
+        }
+
         function renderLivePreview() {
             const slipHTML = generateSlipHTML();
             
-            // STRICTLY FORCED TO EXACTLY 5 SLIPS
-            const copies = 5; 
+            // Dynamically calculate how many copies can fit without overlapping/merging
+            const copies = calculateOptimalCopies(slipHTML);
             
             let fullHTML = '';
+            
+            // Calculate height as percentage so they stretch to fill the page equally
+            // Subtract 0.5 to prevent edge-case rounding overflow
+            const dynamicHeightVH = (100 / copies) - 0.5;
+
             for(let i=0; i < copies; i++) {
-                fullHTML += `<div class="slip-divider">${slipHTML}</div>`;
+                fullHTML += `<div class="slip-divider" style="height: ${dynamicHeightVH}vh; max-height: ${dynamicHeightVH}vh;">${slipHTML}</div>`;
             }
 
             DOM.previewPaper.innerHTML = fullHTML;
@@ -591,15 +604,12 @@
                 }
             }
 
-            // Ensure rendering is up to date
             saveDOMToState();
             renderLivePreview();
             
-            // Trigger browser print
             window.print();
         }
 
-        // START APP
         init();
 
     </script>
