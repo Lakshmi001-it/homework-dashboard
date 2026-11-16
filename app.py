@@ -52,8 +52,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 
 /* ---------- layout ---------- */
 .layout{
-  max-width:1380px;margin:22px auto;padding:0 20px;width:100%;
-  display:grid;grid-template-columns:minmax(340px,520px) 1fr;gap:22px;align-items:start;flex:1;
+  max-width:1500px;margin:22px auto;padding:0 20px;width:100%;
+  display:grid;grid-template-columns:minmax(420px,1.6fr) minmax(300px,1fr);gap:22px;align-items:start;flex:1;
 }
 @media (max-width:980px){.layout{grid-template-columns:1fr}}
 .card{background:#fff;border-radius:20px;box-shadow:0 8px 30px rgba(79,70,229,.10);padding:18px}
@@ -100,7 +100,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--indigo);background:#f
 .today-btn{border:1.5px solid var(--line);background:#fff;border-radius:11px;padding:0 10px;font-size:.74rem;font-weight:600;color:var(--indigo);cursor:pointer;white-space:nowrap}
 
 .subj{
-  display:grid;grid-template-columns:130px 1fr 38px;gap:8px;align-items:start;
+  display:grid;grid-template-columns:170px 1fr 42px;gap:8px;align-items:start;
   background:#fafafe;border:1.5px solid var(--line);border-left:5px solid var(--c,#6366f1);border-radius:12px;padding:8px;margin-bottom:8px;
 }
 @media (max-width:520px){.subj{grid-template-columns:1fr 38px}.subj .s-name{grid-column:1/2}.subj .s-body{grid-column:1/-1;order:3}}
